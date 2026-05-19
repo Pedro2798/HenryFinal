@@ -216,3 +216,17 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
+
+# ---------------------------------------------------------------------------
+# LegalMove project
+# ---------------------------------------------------------------------------
+# Claude Code / local agent worktrees and scratch (never part of the project)
+.claude/
+
+# Generated analysis reports
+/outputs/
+# Local secrets (template lives in .env.example, which IS committed)
+.env
+# OS / editor noise
+.DS_Store
+Thumbs.db

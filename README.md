@@ -224,7 +224,12 @@ cambios) vs *Auditor de Compliance* (sólo diffea, clasifica en
 ADICIÓN/ELIMINACIÓN/MODIFICACIÓN, exige citar valores antes/después, prohíbe
 inferir cambios sin evidencia textual). Las *descriptions* de cada campo
 Pydantic viajan dentro del JSON-schema de *structured outputs*, lo que mejora
-materialmente la precisión.
+materialmente la precisión. Además ambos prompts son *instrument-aware*:
+explicitan que la enmienda es un **instrumento que edita** al original (sus
+encabezados de instrucción y el boilerplate tipo «No Other Changes» NO son
+cláusulas), y que una eliminación se clasifica como DELETION (no MODIFICATION).
+Esto se endureció tras **probar end-to-end** y detectar que un modelo débil
+tomaba el andamiaje de la enmienda como cláusulas nuevas.
 
 **Validación de errores.** Dos capas: (1) *structured outputs* con
 `method="json_schema", strict=True` fuerzan el esquema en origen; (2)

@@ -77,7 +77,18 @@ automáticamente como *generations* con **uso de tokens y latencia** porque:
   (`from langfuse.openai import OpenAI`), y
 * los agentes usan el **`CallbackHandler` de Langfuse para LangChain**,
 
-ambos propagados por el contexto OpenTelemetry del span activo.
+ambos propagados por el contexto OpenTelemetry de la observación activa.
+
+Además, siguiendo el **skill oficial de Langfuse** (`instrumentation.md`), la
+traza lleva contexto a nivel de traza vía `propagate_attributes`:
+`session_id` (agrupa todas las corridas del mismo par de contratos →
+**Sessions view**), `user_id` (atribución de costo/calidad → **Users view**),
+`version` (release) y `tags`. El `environment` se setea por
+`LANGFUSE_TRACING_ENVIRONMENT`. Una función `mask` redacta credenciales y
+emails (PII) **antes** de enviar nada; el texto de las cláusulas se conserva a
+propósito porque es justamente lo que Compliance necesita auditar. El
+`input/output` de la traza se deriva de la observación raíz (en v4
+`set_trace_io` está deprecado).
 
 ---
 
@@ -134,6 +145,9 @@ Variables de entorno (`.env`):
 | `LANGFUSE_PUBLIC_KEY` | ✅ | `pk-lf-...` |
 | `LANGFUSE_SECRET_KEY` | ✅ | `sk-lf-...` |
 | `LANGFUSE_HOST` | ✅ | `https://cloud.langfuse.com` |
+| `LANGFUSE_TRACING_ENVIRONMENT` | ❌ | Entorno de la traza (default `development`) |
+| `LANGFUSE_RELEASE` | ❌ | Release (default `legalmove@<versión>`) |
+| `LANGFUSE_SESSION_ID` / `LANGFUSE_USER_ID` | ❌ | Override del session/user auto-derivado |
 
 ---
 
@@ -162,9 +176,10 @@ Salida (ejemplo del caso simple):
 }
 ```
 
-Opciones: `--model <id>`, `--output <path>` (guarda el JSON), `--verbose`
-(logging DEBUG). Códigos de salida: `0` ok · `2` archivo inválido · `3` config
-faltante · `4` error de visión · `5` error de agente · `6` validación Pydantic.
+Opciones: `--model <id>`, `--session-id <id>`, `--user-id <id>`,
+`--output <path>` (guarda el JSON), `--verbose` (logging DEBUG). Códigos de
+salida: `0` ok · `2` archivo inválido · `3` config faltante · `4` error de
+visión · `5` error de agente · `6` validación Pydantic.
 
 ---
 
@@ -227,6 +242,26 @@ funcionando, sólo no traza) para no romper una demo en vivo.
 tipado y determinista entre agentes (`temperature=0`) y el `CallbackHandler` de
 Langfuse instrumenta cada llamada sin código extra.
 
+**Observabilidad (best practices del skill oficial de Langfuse).** La
+instrumentación se auditó contra el skill oficial
+`github.com/langfuse/skills` (`references/instrumentation.md`). Decisiones:
+(1) **SDK v4** — el skill exige usar la última versión y mantener el código
+alineado con la documentación vigente (clave para la defensa: si el corrector
+abre los docs de Langfuse, la API coincide). Se usa
+`start_as_current_observation` + `propagate_attributes`; se evitan APIs
+deprecadas (`set_trace_io`) — verificado con un smoke test que trata
+`DeprecationWarning` como error. (2) **Jerarquía + métricas**: integraciones (OpenAI drop-in,
+LangChain handler) capturan modelo/tokens/latencia automáticamente; nombres
+descriptivos por etapa. (3) **`session_id`** agrupa re-corridas del mismo par
+en *Sessions*; **`user_id`** habilita atribución de costo/calidad en *Users*;
+`environment` + `release` separan dev/prod. (4) **Masking**: un hook `mask`
+redacta llaves (`sk-…`, `pk-lf-…`) y emails antes de transmitir; se conserva
+el texto de cláusulas porque es el dato que Compliance debe auditar (decisión
+explícita, no un descuido). (5) **`flush()` en `finally`** para no perder
+trazas al salir el CLI; orden de imports después de `load_dotenv()`. Principio
+rector del skill: *documentation-first* — la API v4 se tomó de los docs
+vigentes, no de memoria.
+
 ---
 
 ## 8. Guion sugerido para la demo en vivo (30 min)
@@ -238,7 +273,9 @@ Langfuse instrumenta cada llamada sin código extra.
    adición + modificación + eliminación a la vez.
 5. **Langfuse** (8′): abrir la traza `contract-analysis`; recorrer el árbol de
    spans; mostrar inputs/outputs de cada agente y **tokens + latencia** en las
-   generations; mostrar el span `pydantic_validation`.
+   generations; mostrar el span `pydantic_validation`; abrir **Sessions**
+   (re-corridas del mismo par agrupadas) y **Users**; señalar el `mask`
+   (credenciales redactadas, cláusulas visibles) y el `environment`/`release`.
 6. **Preguntas** (5′): usar la sección 7 como respaldo.
 
 ---

@@ -36,9 +36,9 @@ flowchart TD
     T2 --> AG2
     AG2 --> V["Step 4 · Validación Pydantic<br/>ContractChangeOutput.model_validate()"]
     V --> OUT["JSON validado<br/>sections_changed · topics_touched · summary"]
-    style AG1 fill:#e8f0fe,stroke:#1a73e8
-    style AG2 fill:#fce8e6,stroke:#d93025
-    style V fill:#e6f4ea,stroke:#188038
+    style AG1 fill:#dbe9ff,stroke:#1a73e8,stroke-width:2px,color:#0b1f44
+    style AG2 fill:#ffe0dd,stroke:#d93025,stroke-width:2px,color:#3b0a08
+    style V fill:#dcf1e3,stroke:#188038,stroke-width:2px,color:#0b2a14
 ```
 
 **Flujo de datos (handoff explícito):**
@@ -200,7 +200,7 @@ resúmenes vacíos/demasiado cortos.
 
 ---
 
-## 7. Decisiones técnicas (defensa)
+## 7. Decisiones técnicas
 
 **¿Por qué dos agentes y no uno?** Separación de responsabilidades. Un único
 prompt "leé y extraé cambios" mezcla dos tareas cognitivas (entender estructura
@@ -269,23 +269,7 @@ vigentes, no de memoria.
 
 ---
 
-## 8. Guion sugerido para la demo en vivo (30 min)
-
-1. **Contexto** (2′): el problema de Compliance en LegalMove.
-2. **Arquitectura** (3′): diagrama de arriba — 2 agentes + handoff + por qué.
-3. **Caso simple** (5′): correr el par Service Agreement; mostrar el JSON.
-4. **Caso complejo** (7′): correr el par NDA; señalar que detecta
-   adición + modificación + eliminación a la vez.
-5. **Langfuse** (8′): abrir la traza `contract-analysis`; recorrer el árbol de
-   spans; mostrar inputs/outputs de cada agente y **tokens + latencia** en las
-   generations; mostrar el span `pydantic_validation`; abrir **Sessions**
-   (re-corridas del mismo par agrupadas) y **Users**; señalar el `mask`
-   (credenciales redactadas, cláusulas visibles) y el `environment`/`release`.
-6. **Preguntas** (5′): usar la sección 7 como respaldo.
-
----
-
-## 9. Limitaciones y mejoras futuras
+## 8. Limitaciones y mejoras futuras
 
 * Contratos multipágina: hoy 1 imagen por documento; extensión natural a varias
   páginas concatenando transcripciones.

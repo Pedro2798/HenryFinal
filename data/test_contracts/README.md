@@ -64,20 +64,32 @@ python -m src.main data/test_contracts/03_nda_original.png \
 
 ## Par 3 — Caso DEGRADADO (robustez de visión)
 
-Mismo contrato que el Par 1, pero con artefactos que simulan una foto
-real de un documento mal escaneado:
+Mismo contrato que el Par 1, pero pasado por un pipeline que simula una
+**foto real con un celular** de un documento muy maltratado:
 
-- Rotación leve (~3°).
-- 2 manchas tipo café semi-transparentes — una incluso cubre parcialmente
-  la fecha **"30 June 2026"** en la enmienda.
-- Sombra de pliegue horizontal.
-- Leve desenfoque gaussiano + recompresión JPEG (calidad 72).
+- **Perspectiva trapezoidal**: el papel se ve inclinado, con esquinas no
+  rectangulares y sombra contra un fondo de escritorio (no es un escaneo
+  plano: parece una foto con ángulo).
+- **6-7 manchas de café por imagen**, cada una con cuerpo multi-lobular,
+  **anillo de café concentrado en el borde** (el efecto físico real del
+  pigmento al secarse), salpicaduras pequeñas alrededor y un goteo
+  serpenteando.
+- **1 smudge pesada por imagen** con un núcleo casi opaco estirado
+  horizontalmente — visualmente borronea líneas enteras (deliberadamente
+  sobre boilerplate / cláusulas no modificadas, no sobre valores críticos).
+- Tinte amarillento sutil (papel envejecido).
+- Sombra de pliegue con gradiente gaussiano.
+- Leve blur de cámara + recompresión JPEG (calidad 76).
 
-**Resultado verificado con `gpt-4o`:** el pipeline igualmente extrae las dos
-modificaciones correctas — GPT-4o lee "30 June 2026" *a través* de la mancha.
-El prompt de visión instruye emitir `[ILLEGIBLE]` antes que adivinar, así
-que en degradaciones extremas el sistema falla con seguridad en vez de
-alucinar valores críticos.
+**Resultado verificado con `gpt-4o`:** la salida es **idéntica al caso limpio**.
+GPT-4o lee "30 June 2026" a pesar de tener una mancha encima, ignora el
+boilerplate borroneado, y reconstruye el texto de las cláusulas no
+modificadas para el mapa estructural. Es un demo fuerte de robustez. Si una
+mancha fuese tan opaca que la imagen pareciera redactada/censurada, gpt-4o
+puede emitir un refusal de seguridad — por eso las smudges se modulan para
+parecer café orgánico y no un bloque negro. El prompt de visión instruye
+emitir `[ILLEGIBLE]` antes que adivinar, así que en una destrucción real
+de píxeles el sistema falla con seguridad en vez de alucinar valores.
 
 **Ejecutar:**
 ```bash

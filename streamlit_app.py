@@ -141,6 +141,10 @@ _PAIRS = {
         _TEST_DIR / "03_nda_original.png",
         _TEST_DIR / "04_nda_amendment.png",
     ),
+    "Servicios CON manchas y desalineación (robustez)": (
+        _TEST_DIR / "05_service_agreement_original_dirty.png",
+        _TEST_DIR / "06_service_agreement_amendment_dirty.png",
+    ),
 }
 _PAIRS_AVAILABLE = {
     label: paths for label, paths in _PAIRS.items()

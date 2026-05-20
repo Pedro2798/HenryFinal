@@ -1,8 +1,9 @@
 # Contratos de prueba (sintéticos)
 
-Dos **pares** de contratos (original + enmienda) usados para la demo en vivo.
-Son imágenes de documentos renderizadas de forma limpia y **reproducible**
-(ver `generate_test_contracts.py`), pensadas para ejercitar todo el pipeline
+**Tres pares** de contratos (original + enmienda) usados para la demo en vivo.
+Son imágenes de documentos renderizadas de forma **reproducible** (ver
+`generate_test_contracts.py` para los limpios y `generate_degraded_contracts.py`
+para el par con artefactos), pensadas para ejercitar todo el pipeline
 `visión → contextualización → extracción` de forma determinista.
 
 | # | Archivo | Rol |
@@ -11,6 +12,8 @@ Son imágenes de documentos renderizadas de forma limpia y **reproducible**
 | 2 | `02_service_agreement_amendment.png` | Contrato de servicios — **enmienda** |
 | 3 | `03_nda_original.png` | Acuerdo de confidencialidad (NDA) — **original** |
 | 4 | `04_nda_amendment.png` | Acuerdo de confidencialidad (NDA) — **enmienda** |
+| 5 | `05_service_agreement_original_dirty.png` | Servicios con artefactos — **original** |
+| 6 | `06_service_agreement_amendment_dirty.png` | Servicios con artefactos — **enmienda** |
 
 ---
 
@@ -59,11 +62,37 @@ python -m src.main data/test_contracts/03_nda_original.png \
 
 ---
 
+## Par 3 — Caso DEGRADADO (robustez de visión)
+
+Mismo contrato que el Par 1, pero con artefactos que simulan una foto
+real de un documento mal escaneado:
+
+- Rotación leve (~3°).
+- 2 manchas tipo café semi-transparentes — una incluso cubre parcialmente
+  la fecha **"30 June 2026"** en la enmienda.
+- Sombra de pliegue horizontal.
+- Leve desenfoque gaussiano + recompresión JPEG (calidad 72).
+
+**Resultado verificado con `gpt-4o`:** el pipeline igualmente extrae las dos
+modificaciones correctas — GPT-4o lee "30 June 2026" *a través* de la mancha.
+El prompt de visión instruye emitir `[ILLEGIBLE]` antes que adivinar, así
+que en degradaciones extremas el sistema falla con seguridad en vez de
+alucinar valores críticos.
+
+**Ejecutar:**
+```bash
+python -m src.main data/test_contracts/05_service_agreement_original_dirty.png \
+                   data/test_contracts/06_service_agreement_amendment_dirty.png
+```
+
+---
+
 ## Regenerar las imágenes
 
 ```bash
 pip install pillow==11.0.0
-python data/test_contracts/generate_test_contracts.py
+python data/test_contracts/generate_test_contracts.py            # pares 1 y 2 (limpios)
+python data/test_contracts/generate_degraded_contracts.py        # par 3 (degradado)
 ```
 
 > Podés reemplazar estos PNG por escaneos reales o por los documentos del

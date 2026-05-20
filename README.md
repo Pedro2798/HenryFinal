@@ -183,7 +183,47 @@ visión · `5` error de agente · `6` validación Pydantic.
 
 ---
 
-## 6. Contrato de salida (Pydantic)
+## 6. Front-end web (Streamlit) y despliegue
+
+Además del CLI, el repo incluye [`streamlit_app.py`](streamlit_app.py), un
+wizard de una pantalla que **reusa el mismo pipeline**:
+
+```bash
+streamlit run streamlit_app.py
+```
+
+Flujo del usuario: subir 2 imágenes (o elegir un par de prueba precargado),
+clic en **Analizar**, ver el JSON validado + el resumen + descarga del
+reporte. La traza queda registrada en Langfuse con el mismo `session_id`
+auto-derivado por par.
+
+### Despliegue gratuito en Streamlit Community Cloud
+
+1. Pushear el repo a GitHub.
+2. Ir a [share.streamlit.io](https://share.streamlit.io) → *Sign in with
+   GitHub* → autorizar.
+3. **New app** → seleccionar el repo + branch `main` + main file
+   `streamlit_app.py` → **Deploy**.
+4. En el panel de la app desplegada: **Settings → Secrets** → pegar:
+
+```toml
+OPENAI_API_KEY = "sk-proj-..."
+OPENAI_MODEL = "gpt-4o"
+LANGFUSE_PUBLIC_KEY = "pk-lf-..."
+LANGFUSE_SECRET_KEY = "sk-lf-..."
+LANGFUSE_HOST = "https://us.cloud.langfuse.com"
+LANGFUSE_TRACING_ENVIRONMENT = "production"
+# Opcional: si lo definís, aparece un gate de contraseña antes del wizard
+# (protección contra que cualquiera con la URL gaste tu API key).
+app_password = "tu-contraseña"
+```
+
+La app reinicia sola y queda servida en una URL pública tipo
+`https://<algo>.streamlit.app`.
+
+---
+
+## 7. Contrato de salida (Pydantic)
 
 `ContractChangeOutput` — exactamente los 3 campos requeridos, con `extra="forbid"`
 (si el modelo alucina una clave extra, falla en validación en vez de ensuciar
@@ -200,7 +240,7 @@ resúmenes vacíos/demasiado cortos.
 
 ---
 
-## 7. Decisiones técnicas
+## 8. Decisiones técnicas
 
 **¿Por qué dos agentes y no uno?** Separación de responsabilidades. Un único
 prompt "leé y extraé cambios" mezcla dos tareas cognitivas (entender estructura
@@ -269,7 +309,7 @@ vigentes, no de memoria.
 
 ---
 
-## 8. Limitaciones y mejoras futuras
+## 9. Limitaciones y mejoras futuras
 
 * Contratos multipágina: hoy 1 imagen por documento; extensión natural a varias
   páginas concatenando transcripciones.

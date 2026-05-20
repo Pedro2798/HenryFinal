@@ -15,6 +15,9 @@ langfuse==4.6.1
 pydantic==2.11.7
 python-dotenv==1.0.1
 
+# Front-end (Streamlit wizard + Streamlit Community Cloud deploy)
+streamlit==1.57.0
+
 # Dev-only (NOT required at runtime): regenerating the synthetic test
 # contracts in data/test_contracts/.  Install manually if you need to
 # re-render the images:  pip install pillow==11.0.0

@@ -1,112 +1,112 @@
-# LegalMove · Agente Autónomo de Comparación de Contratos
+# LegalMove · Autonomous Contract Comparison Agent
 
-Sistema **multi-agente** que recibe las imágenes escaneadas de un **contrato
-original** y su **enmienda (adenda)**, las lee con **GPT-4o (Visión)** y, mediante
-dos agentes especializados que colaboran, identifica y resume los cambios
-legales, devolviendo un **JSON estrictamente validado con Pydantic** y una
-**traza jerárquica completa en Langfuse**.
-
----
-
-## 1. Problema de negocio
-
-En **LegalMove** el equipo de Compliance dedica **+40 h/semana** a comparar
-manualmente contratos contra sus adendas para detectar qué cambió y evaluar el
-impacto legal. Es lento, propenso a error humano y un cuello de botella para
-escalar.
-
-Este sistema automatiza ese trabajo: de dos imágenes a un **reporte estructurado
-y auditable** que los sistemas de la empresa pueden procesar sin intervención
-humana.
+A **multi-agent** system that takes scanned images of an **original contract**
+and its **amendment**, reads them with **GPT-4o (Vision)** and, through two
+specialized collaborating agents, identifies and summarizes the legal changes,
+returning a **JSON output strictly validated with Pydantic** plus a **full
+hierarchical trace in Langfuse**.
 
 ---
 
-## 2. Arquitectura
+## 1. Business problem
+
+At **LegalMove**, the Compliance team spends **40+ hours/week** manually
+comparing contracts against their amendments to detect what changed and assess
+the legal impact. It is slow, prone to human error, and a bottleneck that
+prevents the company from scaling.
+
+This system automates that work: from two images to a **structured, auditable
+report** that the company's downstream systems can process without human
+intervention.
+
+---
+
+## 2. Architecture
 
 ```mermaid
 flowchart TD
-    A["Imagen contrato ORIGINAL"] --> P1["Step 1a · parse_contract_image()<br/>GPT-4o Vision + base64"]
-    B["Imagen ENMIENDA"] --> P2["Step 1b · parse_contract_image()<br/>GPT-4o Vision + base64"]
-    P1 --> T1["Texto fiel ORIGINAL<br/>(ParsedDocument)"]
-    P2 --> T2["Texto fiel ENMIENDA<br/>(ParsedDocument)"]
+    A["ORIGINAL contract image"] --> P1["Step 1a · parse_contract_image()<br/>GPT-4o Vision + base64"]
+    B["AMENDMENT image"] --> P2["Step 1b · parse_contract_image()<br/>GPT-4o Vision + base64"]
+    P1 --> T1["Faithful ORIGINAL text<br/>(ParsedDocument)"]
+    P2 --> T2["Faithful AMENDMENT text<br/>(ParsedDocument)"]
     T1 --> AG1
-    T2 --> AG1["Agente 1 · ContextualizationAgent<br/><i>Analista Legal Senior</i><br/>→ mapa estructural comparado"]
-    AG1 -->|handoff: ContractStructureMap| AG2["Agente 2 · ExtractionAgent<br/><i>Auditor de Compliance</i><br/>→ aísla y clasifica cambios"]
+    T2 --> AG1["Agent 1 · ContextualizationAgent<br/><i>Senior Legal Analyst</i><br/>→ compared structural map"]
+    AG1 -->|handoff: ContractStructureMap| AG2["Agent 2 · ExtractionAgent<br/><i>Compliance Auditor</i><br/>→ isolates and classifies changes"]
     T1 --> AG2
     T2 --> AG2
-    AG2 --> V["Step 4 · Validación Pydantic<br/>ContractChangeOutput.model_validate()"]
-    V --> OUT["JSON validado<br/>sections_changed · topics_touched · summary"]
+    AG2 --> V["Step 4 · Pydantic validation<br/>ContractChangeOutput.model_validate()"]
+    V --> OUT["Validated JSON<br/>sections_changed · topics_touched · summary"]
     style AG1 fill:#dbe9ff,stroke:#1a73e8,stroke-width:2px,color:#0b1f44
     style AG2 fill:#ffe0dd,stroke:#d93025,stroke-width:2px,color:#3b0a08
     style V fill:#dcf1e3,stroke:#188038,stroke-width:2px,color:#0b2a14
 ```
 
-**Flujo de datos (handoff explícito):**
+**Data flow (explicit handoff):**
 
-1. **Visión** → cada imagen se valida, se codifica en base64 y se envía a GPT-4o
-   con un prompt de transcripción fiel. Salida: `ParsedDocument` (texto +
-   tokens + latencia).
-2. **Agente 1 (Contextualización)** → recibe ambos textos y produce un
-   `ContractStructureMap`: qué secciones existen en cada documento, cómo se
-   corresponden y qué gobierna cada bloque. **No** extrae cambios.
-3. **Agente 2 (Extracción)** → recibe **el mapa del Agente 1** + ambos textos y
-   aísla cada cambio, clasificándolo en ADICIÓN / ELIMINACIÓN / MODIFICACIÓN.
-   Salida: `ContractChangeOutput`.
-4. **Validación Pydantic** → `model_validate()` explícito sobre la salida, además
-   de los *structured outputs* que ya restringen al modelo en origen.
+1. **Vision** → each image is validated, encoded in base64 and sent to GPT-4o
+   with a faithful-transcription prompt. Output: `ParsedDocument` (text +
+   tokens + latency).
+2. **Agent 1 (Contextualization)** → receives both texts and produces a
+   `ContractStructureMap`: which sections exist in each document, how they map
+   to each other, and what each block governs. It does **not** extract changes.
+3. **Agent 2 (Extraction)** → receives **Agent 1's map** plus both texts and
+   isolates every change, classifying it as ADDITION / DELETION / MODIFICATION.
+   Output: `ContractChangeOutput`.
+4. **Pydantic validation** → an explicit `model_validate()` over the output,
+   on top of the *structured outputs* that already constrain the model at the
+   source.
 
-### Jerarquía de la traza en Langfuse
+### Langfuse trace hierarchy
 
 ```
-contract-analysis                    ← span raíz (= trace)
-├── parse_original_contract          ← span  ─┐ generación GPT-4o Vision
-│   └── (generation: gpt-4o)                  │ tokens + latencia (auto)
+contract-analysis                    ← root span (= trace)
+├── parse_original_contract          ← span  ─┐ GPT-4o Vision generation
+│   └── (generation: gpt-4o)                  │ tokens + latency (auto)
 ├── parse_amendment_contract         ← span  ─┘
-├── contextualization_agent          ← span  ─┐ generación ChatOpenAI
-│   └── (generation: gpt-4o)                  │ vía CallbackHandler (auto)
+├── contextualization_agent          ← span  ─┐ ChatOpenAI generation
+│   └── (generation: gpt-4o)                  │ via CallbackHandler (auto)
 ├── extraction_agent                 ← span  ─┘
 │   └── (generation: gpt-4o)
 └── pydantic_validation              ← span  (input/output/schema)
 ```
 
-Cada `span` registra `input`, `output` y `metadata` (caracteres, tokens,
-latencia, modelo, nº de secciones). Las llamadas al LLM se anidan
-automáticamente como *generations* con **uso de tokens y latencia** porque:
+Each `span` records `input`, `output` and `metadata` (characters, tokens,
+latency, model, number of sections). LLM calls are nested automatically as
+*generations* with **token usage and latency** because:
 
-* el parsing usa el **drop-in de Langfuse para OpenAI**
-  (`from langfuse.openai import OpenAI`), y
-* los agentes usan el **`CallbackHandler` de Langfuse para LangChain**,
+* parsing uses the **Langfuse drop-in for OpenAI**
+  (`from langfuse.openai import OpenAI`), and
+* the agents use Langfuse's **`CallbackHandler` for LangChain**,
 
-ambos propagados por el contexto OpenTelemetry de la observación activa.
+both propagated through the OpenTelemetry context of the active observation.
 
-Además, siguiendo el **skill oficial de Langfuse** (`instrumentation.md`), la
-traza lleva contexto a nivel de traza vía `propagate_attributes`:
-`session_id` (agrupa todas las corridas del mismo par de contratos →
-**Sessions view**), `user_id` (atribución de costo/calidad → **Users view**),
-`version` (release) y `tags`. El `environment` se setea por
-`LANGFUSE_TRACING_ENVIRONMENT`. Una función `mask` redacta credenciales y
-emails (PII) **antes** de enviar nada; el texto de las cláusulas se conserva a
-propósito porque es justamente lo que Compliance necesita auditar. El
-`input/output` de la traza se deriva de la observación raíz (en v4
-`set_trace_io` está deprecado).
+Additionally, following the **official Langfuse skill** (`instrumentation.md`),
+the trace carries trace-level context via `propagate_attributes`:
+`session_id` (groups all runs for the same contract pair → **Sessions view**),
+`user_id` (cost/quality attribution → **Users view**), `version` (release) and
+`tags`. The `environment` is set via `LANGFUSE_TRACING_ENVIRONMENT`. A `mask`
+function redacts credentials and emails (PII) **before** anything is sent over
+the wire; clause text is preserved on purpose because that is precisely what
+Compliance needs to audit. The trace's `input/output` is derived from the root
+observation (in v4 `set_trace_io` is deprecated).
 
 ---
 
-## 3. Estructura del repositorio
+## 3. Repository structure
 
 ```
 .
 ├── src/
-│   ├── main.py                      # Entry point + orquestación + traza Langfuse
-│   ├── image_parser.py              # Validación, base64 y llamada GPT-4o Vision
-│   ├── models.py                    # Modelos Pydantic (contrato de datos)
+│   ├── main.py                      # Entry point + orchestration + Langfuse trace
+│   ├── image_parser.py              # Validation, base64 and GPT-4o Vision call
+│   ├── models.py                    # Pydantic models (data contract)
 │   └── agents/
-│       ├── base.py                  # AgentError compartido
-│       ├── contextualization_agent.py   # Agente 1 (Analista Senior)
-│       └── extraction_agent.py          # Agente 2 (Auditor Compliance)
-├── data/test_contracts/             # 2 pares de contratos + README + generador
-├── requirements.txt                 # Dependencias con versiones fijadas
-├── .env.example                     # Plantilla de variables de entorno
+│       ├── base.py                  # Shared AgentError
+│       ├── contextualization_agent.py   # Agent 1 (Senior Analyst)
+│       └── extraction_agent.py          # Agent 2 (Compliance Auditor)
+├── data/test_contracts/             # 2 contract pairs + README + generator
+├── requirements.txt                 # Dependencies with pinned versions
+├── .env.example                     # Environment variable template
 └── README.md
 ```
 
@@ -114,59 +114,59 @@ propósito porque es justamente lo que Compliance necesita auditar. El
 
 ## 4. Setup
 
-Requisitos: **Python 3.11+** (probado en 3.13), una *API key* de OpenAI y un
-proyecto en [cloud.langfuse.com](https://cloud.langfuse.com).
+Requirements: **Python 3.11+** (tested on 3.13), an OpenAI *API key* and a
+project at [cloud.langfuse.com](https://cloud.langfuse.com).
 
 ```bash
-# 1. Clonar y entrar al repo
+# 1. Clone and enter the repo
 git clone <repo-url> && cd <repo>
 
-# 2. Entorno virtual
+# 2. Virtual environment
 python -m venv .venv
 # Windows:
 .venv\Scripts\activate
 # Linux/macOS:
 source .venv/bin/activate
 
-# 3. Dependencias
+# 3. Dependencies
 pip install -r requirements.txt
 
-# 4. Credenciales
+# 4. Credentials
 cp .env.example .env        # Windows: copy .env.example .env
-#   y completar OPENAI_API_KEY, LANGFUSE_PUBLIC_KEY, LANGFUSE_SECRET_KEY
+#   and fill in OPENAI_API_KEY, LANGFUSE_PUBLIC_KEY, LANGFUSE_SECRET_KEY
 ```
 
-Variables de entorno (`.env`):
+Environment variables (`.env`):
 
-| Variable | Requerida | Descripción |
-|----------|-----------|-------------|
-| `OPENAI_API_KEY` | ✅ | Clave de OpenAI (Visión + agentes) |
-| `OPENAI_MODEL` | ❌ | Modelo (default `gpt-4o`) |
+| Variable | Required | Description |
+|----------|----------|-------------|
+| `OPENAI_API_KEY` | ✅ | OpenAI key (Vision + agents) |
+| `OPENAI_MODEL` | ❌ | Model (default `gpt-4o`) |
 | `LANGFUSE_PUBLIC_KEY` | ✅ | `pk-lf-...` |
 | `LANGFUSE_SECRET_KEY` | ✅ | `sk-lf-...` |
 | `LANGFUSE_HOST` | ✅ | `https://cloud.langfuse.com` |
-| `LANGFUSE_TRACING_ENVIRONMENT` | ❌ | Entorno de la traza (default `development`) |
-| `LANGFUSE_RELEASE` | ❌ | Release (default `legalmove@<versión>`) |
-| `LANGFUSE_SESSION_ID` / `LANGFUSE_USER_ID` | ❌ | Override del session/user auto-derivado |
+| `LANGFUSE_TRACING_ENVIRONMENT` | ❌ | Trace environment (default `development`) |
+| `LANGFUSE_RELEASE` | ❌ | Release (default `legalmove@<version>`) |
+| `LANGFUSE_SESSION_ID` / `LANGFUSE_USER_ID` | ❌ | Override the auto-derived session/user |
 
 ---
 
-## 5. Uso
+## 5. Usage
 
 ```bash
-# Caso SIMPLE (1 cláusula de monto + 1 de fecha)
+# SIMPLE case (1 amount clause + 1 date clause)
 python -m src.main \
   data/test_contracts/01_service_agreement_original.png \
   data/test_contracts/02_service_agreement_amendment.png
 
-# Caso COMPLEJO (adición + modificación + eliminación)
+# COMPLEX case (addition + modification + deletion)
 python -m src.main \
   data/test_contracts/03_nda_original.png \
   data/test_contracts/04_nda_amendment.png \
   --output outputs/nda_report.json --verbose
 ```
 
-Salida (ejemplo del caso simple):
+Output (simple case example):
 
 ```json
 {
@@ -176,35 +176,34 @@ Salida (ejemplo del caso simple):
 }
 ```
 
-Opciones: `--model <id>`, `--session-id <id>`, `--user-id <id>`,
-`--output <path>` (guarda el JSON), `--verbose` (logging DEBUG). Códigos de
-salida: `0` ok · `2` archivo inválido · `3` config faltante · `4` error de
-visión · `5` error de agente · `6` validación Pydantic.
+Options: `--model <id>`, `--session-id <id>`, `--user-id <id>`,
+`--output <path>` (saves the JSON), `--verbose` (DEBUG logging). Exit codes:
+`0` ok · `2` invalid file · `3` missing config · `4` vision error · `5` agent
+error · `6` Pydantic validation.
 
 ---
 
-## 6. Front-end web (Streamlit) y despliegue
+## 6. Web front-end (Streamlit) and deployment
 
-Además del CLI, el repo incluye [`streamlit_app.py`](streamlit_app.py), un
-wizard de una pantalla que **reusa el mismo pipeline**:
+In addition to the CLI, the repo ships [`streamlit_app.py`](streamlit_app.py),
+a single-screen wizard that **reuses the same pipeline**:
 
 ```bash
 streamlit run streamlit_app.py
 ```
 
-Flujo del usuario: subir 2 imágenes (o elegir un par de prueba precargado),
-clic en **Analizar**, ver el JSON validado + el resumen + descarga del
-reporte. La traza queda registrada en Langfuse con el mismo `session_id`
-auto-derivado por par.
+User flow: upload 2 images (or pick a preloaded test pair), click **Analyze**,
+view the validated JSON + the summary + download the report. The trace is
+recorded in Langfuse with the same `session_id` auto-derived per pair.
 
-### Despliegue gratuito en Streamlit Community Cloud
+### Free deployment on Streamlit Community Cloud
 
-1. Pushear el repo a GitHub.
-2. Ir a [share.streamlit.io](https://share.streamlit.io) → *Sign in with
-   GitHub* → autorizar.
-3. **New app** → seleccionar el repo + branch `main` + main file
-   `streamlit_app.py` → **Deploy**.
-4. En el panel de la app desplegada: **Settings → Secrets** → pegar:
+1. Push the repo to GitHub.
+2. Go to [share.streamlit.io](https://share.streamlit.io) → *Sign in with
+   GitHub* → authorize.
+3. **New app** → select repo + branch `main` + main file `streamlit_app.py`
+   → **Deploy**.
+4. In the deployed app panel: **Settings → Secrets** → paste:
 
 ```toml
 OPENAI_API_KEY = "sk-proj-..."
@@ -213,107 +212,109 @@ LANGFUSE_PUBLIC_KEY = "pk-lf-..."
 LANGFUSE_SECRET_KEY = "sk-lf-..."
 LANGFUSE_HOST = "https://us.cloud.langfuse.com"
 LANGFUSE_TRACING_ENVIRONMENT = "production"
-# Opcional: si lo definís, aparece un gate de contraseña antes del wizard
-# (protección contra que cualquiera con la URL gaste tu API key).
-app_password = "tu-contraseña"
+# Optional: if set, a password gate appears before the wizard
+# (protects against anyone with the URL burning through your API key).
+app_password = "your-password"
 ```
 
-La app reinicia sola y queda servida en una URL pública tipo
-`https://<algo>.streamlit.app`.
+The app restarts itself and is served on a public URL like
+`https://<something>.streamlit.app`.
 
 ---
 
-## 7. Contrato de salida (Pydantic)
+## 7. Output contract (Pydantic)
 
-`ContractChangeOutput` — exactamente los 3 campos requeridos, con `extra="forbid"`
-(si el modelo alucina una clave extra, falla en validación en vez de ensuciar
-producción):
+`ContractChangeOutput` — exactly the 3 required fields, with `extra="forbid"`
+(if the model hallucinates an extra key, validation fails instead of polluting
+production):
 
-| Campo | Tipo | Significado |
-|-------|------|-------------|
-| `sections_changed` | `List[str]` | Cláusulas/secciones modificadas |
-| `topics_touched` | `List[str]` | Categorías legales/comerciales afectadas |
-| `summary_of_the_change` | `str` | Narrativa audit-grade (tipo de cambio + valores antes/después) |
+| Field | Type | Meaning |
+|-------|------|---------|
+| `sections_changed` | `List[str]` | Modified clauses/sections |
+| `topics_touched` | `List[str]` | Legal/commercial categories affected |
+| `summary_of_the_change` | `str` | Audit-grade narrative (change type + before/after values) |
 
-Validadores: normalización (`strip`), de-duplicación de listas y rechazo de
-resúmenes vacíos/demasiado cortos.
-
----
-
-## 8. Decisiones técnicas
-
-**¿Por qué dos agentes y no uno?** Separación de responsabilidades. Un único
-prompt "leé y extraé cambios" mezcla dos tareas cognitivas (entender estructura
-y diffear) y aumenta alucinaciones y omisiones. El **Agente 1** construye un
-mapa estructural fiable; el **Agente 2** gasta el 100 % de su atención en
-diffear sobre ese mapa. Beneficios concretos: menos alucinación, *prompts* más
-cortos y especializados, y **trazas auditables** — en Langfuse se ve exactamente
-qué entendió cada agente, lo cual es clave para un entorno legal/compliance.
-
-**¿Por qué GPT-4o para el parsing y no OCR tradicional?** El OCR clásico
-(Tesseract) devuelve texto plano con ruido y **pierde la jerarquía** (números de
-cláusula, anidamiento, tablas). GPT-4o es multimodal: entiende el *layout* del
-documento y reconstruye la estructura (`4.`, `4.1`, `(a)`), tolera escaneos
-imperfectos y permite instruir por prompt la fidelidad ("no resumas, no
-interpretes, copiá verbatim, marcá `[ILLEGIBLE]`"). Esa jerarquía es lo que
-después permite que los agentes identifiquen "Clause 3" de forma estable.
-
-**Diseño de los system prompts.** Cada agente tiene un **rol senior explícito**:
-*Analista Legal Senior* (cartógrafo estructural, tiene **prohibido** listar
-cambios) vs *Auditor de Compliance* (sólo diffea, clasifica en
-ADICIÓN/ELIMINACIÓN/MODIFICACIÓN, exige citar valores antes/después, prohíbe
-inferir cambios sin evidencia textual). Las *descriptions* de cada campo
-Pydantic viajan dentro del JSON-schema de *structured outputs*, lo que mejora
-materialmente la precisión. Además ambos prompts son *instrument-aware*:
-explicitan que la enmienda es un **instrumento que edita** al original (sus
-encabezados de instrucción y el boilerplate tipo «No Other Changes» NO son
-cláusulas), y que una eliminación se clasifica como DELETION (no MODIFICATION).
-Esto se endureció tras **probar end-to-end** y detectar que un modelo débil
-tomaba el andamiaje de la enmienda como cláusulas nuevas.
-
-**Validación de errores.** Dos capas: (1) *structured outputs* con
-`method="json_schema", strict=True` fuerzan el esquema en origen; (2)
-`ContractChangeOutput.model_validate()` explícito en su propio span vuelve a
-validar el resultado de forma independiente. Errores de API (timeout, rate
-limit, request inválido, red) se capturan tipados en `image_parser` y se
-convierten en `ContractParsingError` con mensaje accionable; las imágenes se
-validan **antes** de gastar una llamada (existencia, tipo, tamaño ≤ 20 MB,
-no-vacío). Cliente OpenAI con `timeout` y `max_retries` configurados. Las
-claves se leen sólo de variables de entorno (`python-dotenv`); nada hardcodeado.
-Si Langfuse no autentica, el pipeline **degrada con elegancia** (sigue
-funcionando, sólo no traza) para no romper una demo en vivo.
-
-**¿Por qué LangChain?** `with_structured_output()` + LCEL da un *handoff*
-tipado y determinista entre agentes (`temperature=0`) y el `CallbackHandler` de
-Langfuse instrumenta cada llamada sin código extra.
-
-**Observabilidad (best practices del skill oficial de Langfuse).** La
-instrumentación se auditó contra el skill oficial
-`github.com/langfuse/skills` (`references/instrumentation.md`). Decisiones:
-(1) **SDK v4** — el skill exige usar la última versión y mantener el código
-alineado con la documentación vigente (clave para la defensa: si el corrector
-abre los docs de Langfuse, la API coincide). Se usa
-`start_as_current_observation` + `propagate_attributes`; se evitan APIs
-deprecadas (`set_trace_io`) — verificado con un smoke test que trata
-`DeprecationWarning` como error. (2) **Jerarquía + métricas**: integraciones (OpenAI drop-in,
-LangChain handler) capturan modelo/tokens/latencia automáticamente; nombres
-descriptivos por etapa. (3) **`session_id`** agrupa re-corridas del mismo par
-en *Sessions*; **`user_id`** habilita atribución de costo/calidad en *Users*;
-`environment` + `release` separan dev/prod. (4) **Masking**: un hook `mask`
-redacta llaves (`sk-…`, `pk-lf-…`) y emails antes de transmitir; se conserva
-el texto de cláusulas porque es el dato que Compliance debe auditar (decisión
-explícita, no un descuido). (5) **`flush()` en `finally`** para no perder
-trazas al salir el CLI; orden de imports después de `load_dotenv()`. Principio
-rector del skill: *documentation-first* — la API v4 se tomó de los docs
-vigentes, no de memoria.
+Validators: normalization (`strip`), list de-duplication, and rejection of
+empty/too-short summaries.
 
 ---
 
-## 9. Limitaciones y mejoras futuras
+## 8. Technical decisions
 
-* Contratos multipágina: hoy 1 imagen por documento; extensión natural a varias
-  páginas concatenando transcripciones.
-* `summary_of_the_change` es texto libre audit-grade; una versión 2 podría
-  devolver una lista estructurada de cambios tipados (ya hay un enum
-  `ChangeType` interno listo para ello).
-* Evaluación automática (golden set) de precisión de extracción.
+**Why two agents instead of one?** Separation of concerns. A single
+"read and extract changes" prompt mixes two cognitive tasks (understanding
+structure and diffing) and increases hallucinations and omissions. **Agent 1**
+builds a reliable structural map; **Agent 2** then spends 100% of its
+attention diffing on top of that map. Concrete benefits: less hallucination,
+shorter and more specialized *prompts*, and **auditable traces** — in Langfuse
+you can see exactly what each agent understood, which is critical in a
+legal/compliance setting.
+
+**Why GPT-4o for parsing instead of traditional OCR?** Classic OCR (Tesseract)
+returns noisy plain text and **loses the hierarchy** (clause numbers, nesting,
+tables). GPT-4o is multimodal: it understands the document *layout* and
+reconstructs the structure (`4.`, `4.1`, `(a)`), tolerates imperfect scans
+and lets you instruct fidelity via prompt ("do not summarize, do not
+interpret, copy verbatim, mark `[ILLEGIBLE]`"). That hierarchy is what later
+lets the agents identify "Clause 3" reliably.
+
+**System prompt design.** Each agent has an **explicit senior role**:
+*Senior Legal Analyst* (structural cartographer, **forbidden** from listing
+changes) vs. *Compliance Auditor* (only diffs, classifies as
+ADDITION/DELETION/MODIFICATION, must cite before/after values, forbidden from
+inferring changes without textual evidence). The *descriptions* on each
+Pydantic field travel inside the *structured outputs* JSON schema, which
+materially improves precision. Both prompts are also *instrument-aware*: they
+spell out that the amendment is an **instrument that edits** the original (its
+instruction headers and boilerplate like "No Other Changes" are NOT clauses),
+and that a deletion is classified as DELETION (not MODIFICATION). This was
+hardened after **end-to-end testing** revealed that a weaker model was taking
+the amendment's scaffolding as new clauses.
+
+**Error validation.** Two layers: (1) *structured outputs* with
+`method="json_schema", strict=True` enforce the schema at the source;
+(2) an explicit `ContractChangeOutput.model_validate()` in its own span
+re-validates the result independently. API errors (timeout, rate limit,
+invalid request, network) are caught in typed fashion in `image_parser` and
+translated into `ContractParsingError` with an actionable message; images are
+validated **before** spending an API call (existence, type, size ≤ 20 MB,
+non-empty). OpenAI client configured with `timeout` and `max_retries`. Keys
+are read only from environment variables (`python-dotenv`); nothing
+hardcoded. If Langfuse cannot authenticate, the pipeline **degrades
+gracefully** (it keeps working, only without tracing) so a live demo never
+breaks.
+
+**Why LangChain?** `with_structured_output()` + LCEL gives a typed,
+deterministic *handoff* between agents (`temperature=0`), and Langfuse's
+`CallbackHandler` instruments every call with no extra code.
+
+**Observability (best practices from the official Langfuse skill).** The
+instrumentation was audited against the official skill
+`github.com/langfuse/skills` (`references/instrumentation.md`). Decisions:
+(1) **SDK v4** — the skill requires using the latest version and keeping the
+code aligned with the current documentation (key for the defense: if the
+grader opens the Langfuse docs, the API matches). We use
+`start_as_current_observation` + `propagate_attributes`; deprecated APIs
+(`set_trace_io`) are avoided — verified by a smoke test that treats
+`DeprecationWarning` as an error. (2) **Hierarchy + metrics**: the
+integrations (OpenAI drop-in, LangChain handler) capture model/tokens/latency
+automatically; each stage has descriptive names. (3) **`session_id`** groups
+re-runs of the same pair in *Sessions*; **`user_id`** enables cost/quality
+attribution in *Users*; `environment` + `release` separate dev/prod.
+(4) **Masking**: a `mask` hook redacts keys (`sk-…`, `pk-lf-…`) and emails
+before transmitting; clause text is preserved because it is the very data
+Compliance must audit (an explicit decision, not an oversight). (5) **`flush()`
+in `finally`** so traces are not lost when the CLI exits; imports ordered
+after `load_dotenv()`. Guiding principle of the skill: *documentation-first*
+— the v4 API was taken from the current docs, not from memory.
+
+---
+
+## 9. Limitations and future improvements
+
+* Multi-page contracts: today 1 image per document; natural extension is to
+  concatenate transcriptions from several pages.
+* `summary_of_the_change` is audit-grade free text; a v2 could return a
+  structured list of typed changes (an internal `ChangeType` enum is already
+  in place for this).
+* Automatic evaluation (golden set) of extraction accuracy.
